@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { rgbCss, rgbToLab, type RGB } from '../../shared/color';
 import { useCamera } from '../../shared/useCamera';
 import { colorCost } from './colors';
-import { detectFace, type FaceDetection } from './detectFace';
+import { analyzeFrame, type Blob, type FaceDetection } from './detectFace';
 
 /** Width of the frame that is analyzed. Small frames are fast and still show the stickers clearly. */
 const FRAME_WIDTH = 320;
@@ -87,7 +87,7 @@ export function ScanView({ onDone, onCancel }: Props) {
     let previous: number[][] | null = null;
     let steady = 0;
 
-    const drawOverlay = (detection: FaceDetection | null, accepted: boolean) => {
+    const drawOverlay = (detection: FaceDetection | null, accepted: boolean, blobs: Blob[]) => {
       const overlay = overlayRef.current;
       const g = overlay?.getContext('2d');
       if (!overlay || !g) return;
@@ -96,6 +96,9 @@ export function ScanView({ onDone, onCancel }: Props) {
         overlay.height = canvas.height;
       }
       g.clearRect(0, 0, overlay.width, overlay.height);
+      // A dot marks every patch that looks like a sticker, even before a whole side is recognized.
+      g.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      for (const blob of blobs) g.fillRect(blob.x - 1.5, blob.y - 1.5, 3, 3);
       if (!detection) return;
       const { center, u, v } = detection;
       const corner = (i: number, j: number) => [center[0] + i * u[0] + j * v[0], center[1] + i * u[1] + j * v[1]] as const;
@@ -120,13 +123,13 @@ export function ScanView({ onDone, onCancel }: Props) {
         canvas.height = height;
       }
       ctx.drawImage(video, 0, 0, FRAME_WIDTH, height);
-      const detection = detectFace(ctx.getImageData(0, 0, FRAME_WIDTH, height));
+      const { face: detection, blobs } = analyzeFrame(ctx.getImageData(0, 0, FRAME_WIDTH, height));
       setSeeing(Boolean(detection));
 
       if (!detection) {
         previous = null;
         steady = 0;
-        drawOverlay(null, false);
+        drawOverlay(null, false, blobs);
         return;
       }
       const labs = detection.colors.map(rgbToLab);
@@ -136,7 +139,7 @@ export function ScanView({ onDone, onCancel }: Props) {
       previous = labs;
       const known = foundRef.current;
       const match = steady >= STEADY_FRAMES ? identify(known, labs) : null;
-      drawOverlay(detection, match !== null);
+      drawOverlay(detection, match !== null, blobs);
       if (match === null) return;
 
       const face: FoundFace = { colors: detection.colors, labs, matched: detection.matched };
@@ -172,6 +175,20 @@ export function ScanView({ onDone, onCancel }: Props) {
       </div>
     );
   }
+
+  // Saves the current camera picture as a file, so that a failing scan can be studied later.
+  const savePhoto = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const photo = document.createElement('canvas');
+    photo.width = video.videoWidth;
+    photo.height = video.videoHeight;
+    photo.getContext('2d')?.drawImage(video, 0, 0);
+    const link = document.createElement('a');
+    link.href = photo.toDataURL('image/png');
+    link.download = `puzzle-scan-${Date.now()}.png`;
+    link.click();
+  };
 
   const remove = (index: number) => setFound(found.filter((_, i) => i !== index));
 
@@ -219,6 +236,9 @@ export function ScanView({ onDone, onCancel }: Props) {
           <button type="button" className="btn" onClick={() => setMirrored(!mirrored)}>
             Flip view
           </button>
+          <button type="button" className="btn" onClick={savePhoto} disabled={!ready}>
+            Save photo
+          </button>
           <button type="button" className="btn" onClick={onCancel}>
             Cancel
           </button>
@@ -226,7 +246,8 @@ export function ScanView({ onDone, onCancel }: Props) {
       </div>
       <p className="hint">
         Tap a saved side to remove it if it looks wrong. Hold the cube by its edges so your fingers do not cover the
-        side facing the camera, and light it from the front.
+        side facing the camera, and light it from the front. White dots mark what the app takes for stickers. If a
+        scan fails, Save photo keeps the camera picture so the problem can be looked at.
       </p>
     </div>
   );

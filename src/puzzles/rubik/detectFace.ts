@@ -20,7 +20,7 @@ export interface FaceDetection {
   matched: number;
 }
 
-interface Blob {
+export interface Blob {
   x: number;
   y: number;
   area: number;
@@ -127,9 +127,15 @@ function samplePatch({ data, width, height }: Frame, cx: number, cy: number, rad
   return close / count >= 0.7 ? color : null;
 }
 
-export function detectFace(frame: Frame): FaceDetection | null {
+export const detectFace = (frame: Frame): FaceDetection | null => analyzeFrame(frame).face;
+
+/** Like detectFace, but also returns every sticker-like blob. The scan screen draws them as feedback. */
+export function analyzeFrame(frame: Frame): { face: FaceDetection | null; blobs: Blob[] } {
   const blobs = findBlobs(frame);
-  if (blobs.length < 7) return null;
+  return { face: blobs.length < 7 ? null : findLattice(frame, blobs), blobs };
+}
+
+function findLattice(frame: Frame, blobs: Blob[]): FaceDetection | null {
 
   let best: { points: [number, number][]; matched: number; error: number; c: Blob; u: [number, number] } | null = null;
 
