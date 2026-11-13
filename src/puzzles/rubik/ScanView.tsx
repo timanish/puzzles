@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { rgbCss, rgbToLab, type RGB } from '../../shared/color';
 import { useCamera } from '../../shared/useCamera';
 import { colorCost } from './colors';
-import { analyzeFrame, type Blob, type FaceDetection } from './detectFace';
+import { detectFace, type FaceDetection } from './detectFace';
 
 /** Width of the frame that is analyzed. Small frames are fast and still show the stickers clearly. */
 const FRAME_WIDTH = 320;
@@ -87,7 +87,8 @@ export function ScanView({ onDone, onCancel }: Props) {
     let previous: number[][] | null = null;
     let steady = 0;
 
-    const drawOverlay = (detection: FaceDetection | null, accepted: boolean, blobs: Blob[]) => {
+    // Draws the outline of the side in view, split into its 3x3 grid.
+    const drawOverlay = (detection: FaceDetection | null, accepted: boolean) => {
       const overlay = overlayRef.current;
       const g = overlay?.getContext('2d');
       if (!overlay || !g) return;
@@ -96,20 +97,18 @@ export function ScanView({ onDone, onCancel }: Props) {
         overlay.height = canvas.height;
       }
       g.clearRect(0, 0, overlay.width, overlay.height);
-      // A dot marks every patch that looks like a sticker, even before a whole side is recognized.
-      g.fillStyle = 'rgba(255, 255, 255, 0.85)';
-      for (const blob of blobs) g.fillRect(blob.x - 1.5, blob.y - 1.5, 3, 3);
       if (!detection) return;
-      const { center, u, v } = detection;
-      const corner = (i: number, j: number) => [center[0] + i * u[0] + j * v[0], center[1] + i * u[1] + j * v[1]] as const;
+      const [tl, tr, br, bl] = detection.corners;
+      const mix = (a: readonly number[], b: readonly number[], t: number) =>
+        [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] as const;
       g.strokeStyle = accepted ? '#34d399' : '#ffffff';
       g.lineWidth = 2;
       g.beginPath();
-      for (const k of [-1.5, -0.5, 0.5, 1.5]) {
-        g.moveTo(...corner(k, -1.5));
-        g.lineTo(...corner(k, 1.5));
-        g.moveTo(...corner(-1.5, k));
-        g.lineTo(...corner(1.5, k));
+      for (let k = 0; k <= 3; k++) {
+        g.moveTo(...mix(tl, tr, k / 3));
+        g.lineTo(...mix(bl, br, k / 3));
+        g.moveTo(...mix(tl, bl, k / 3));
+        g.lineTo(...mix(tr, br, k / 3));
       }
       g.stroke();
     };
@@ -123,13 +122,13 @@ export function ScanView({ onDone, onCancel }: Props) {
         canvas.height = height;
       }
       ctx.drawImage(video, 0, 0, FRAME_WIDTH, height);
-      const { face: detection, blobs } = analyzeFrame(ctx.getImageData(0, 0, FRAME_WIDTH, height));
+      const detection = detectFace(ctx.getImageData(0, 0, FRAME_WIDTH, height));
       setSeeing(Boolean(detection));
 
       if (!detection) {
         previous = null;
         steady = 0;
-        drawOverlay(null, false, blobs);
+        drawOverlay(null, false);
         return;
       }
       const labs = detection.colors.map(rgbToLab);
@@ -139,7 +138,7 @@ export function ScanView({ onDone, onCancel }: Props) {
       previous = labs;
       const known = foundRef.current;
       const match = steady >= STEADY_FRAMES ? identify(known, labs) : null;
-      drawOverlay(detection, match !== null, blobs);
+      drawOverlay(detection, match !== null);
       if (match === null) return;
 
       const face: FoundFace = { colors: detection.colors, labs, matched: detection.matched };
@@ -205,7 +204,7 @@ export function ScanView({ onDone, onCancel }: Props) {
         <h2>{found.length < 6 ? `${found.length} of 6 sides found` : 'All six sides found'}</h2>
         <p>
           Turn the cube slowly so that every side faces the camera once. Any order works, and it does not matter which
-          way up the cube is. A grid appears when a side is seen, and the screen flashes when it is saved.
+          way up the cube is. An outline appears around a side when it is seen, and the screen flashes when it is saved.
         </p>
         <p className={seeing ? 'status good left' : 'status left'} role="status">
           {found.length === 6 ? 'Fitting the sides together…' : seeing ? 'Side in view.' : 'Looking for a side…'}
@@ -246,8 +245,8 @@ export function ScanView({ onDone, onCancel }: Props) {
       </div>
       <p className="hint">
         Tap a saved side to remove it if it looks wrong. Hold the cube by its edges so your fingers do not cover the
-        side facing the camera, and light it from the front. White dots mark what the app takes for stickers. If a
-        scan fails, Save photo keeps the camera picture so the problem can be looked at.
+        side facing the camera, and light it from the front. If a scan fails, Save photo keeps the
+        camera picture so the problem can be looked at.
       </p>
     </div>
   );

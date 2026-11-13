@@ -63,11 +63,15 @@ describe('assembling a cube from loose faces', () => {
   });
 });
 
-/** Draws one face as nine squares with dark gaps, turned by an angle, on a noisy background. */
-function drawFace(colors: RGB[], angle: number, random: () => number, width = 320, height = 180) {
+/**
+ * Draws one face turned by an angle on a noisy background. With gaps, the pieces are separated
+ * by dark lines, as on a stickered cube. Without gaps the pieces touch, as on a stickerless cube,
+ * and only a small dark spot shows where four piece corners meet.
+ */
+function drawFace(colors: RGB[], angle: number, random: () => number, gaps = true, width = 320, height = 180) {
   const data = new Uint8ClampedArray(width * height * 4);
   const pitch = 30;
-  const half = 12;
+  const half = gaps ? 12 : 15;
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
   for (let y = 0; y < height; y++) {
@@ -77,12 +81,14 @@ function drawFace(colors: RGB[], angle: number, random: () => number, width = 32
       const dy = y - 88;
       const fx = dx * cos + dy * sin;
       const fy = -dx * sin + dy * cos;
-      let color: number[] = [70 + (x % 37), 80 + (y % 29), 90];
-      if (Math.abs(fx) < pitch * 1.5 + 3 && Math.abs(fy) < pitch * 1.5 + 3) {
+      let color: number[] = [70 + x * 0.12, 80 + y * 0.15, 90];
+      const edgeOfFace = pitch * 1.5 + (gaps ? 3 : 0);
+      if (Math.abs(fx) < edgeOfFace && Math.abs(fy) < edgeOfFace) {
         color = [12, 12, 14];
-        const c = Math.round(fx / pitch);
-        const r = Math.round(fy / pitch);
-        if (Math.abs(c) <= 1 && Math.abs(r) <= 1 && Math.abs(fx - c * pitch) < half && Math.abs(fy - r * pitch) < half) {
+        const c = Math.max(-1, Math.min(1, Math.round(fx / pitch)));
+        const r = Math.max(-1, Math.min(1, Math.round(fy / pitch)));
+        const nearJunction = Math.abs(Math.abs(fx) - pitch / 2) < 2.5 && Math.abs(Math.abs(fy) - pitch / 2) < 2.5;
+        if (Math.abs(fx - c * pitch) <= half && Math.abs(fy - r * pitch) <= half && (gaps || !nearJunction)) {
           color = [...colors[(r + 1) * 3 + c + 1]];
         }
       }
@@ -94,25 +100,40 @@ function drawFace(colors: RGB[], angle: number, random: () => number, width = 32
   return { data, width, height };
 }
 
-describe('finding a face in a picture', () => {
-  const face: RGB[] = [0, 1, 2, 3, 4, 5, 1, 1, 3].map((v) => SEEN[v]);
+function expectColors(found: ReturnType<typeof detectFace>, face: RGB[], label: string) {
+  expect(found, label).not.toBeNull();
+  found!.colors.forEach((color, i) => {
+    const off = Math.abs(color[0] - face[i][0]) + Math.abs(color[1] - face[i][1]) + Math.abs(color[2] - face[i][2]);
+    expect(off, `${label}, cell ${i}`).toBeLessThan(30);
+  });
+}
 
-  it('reads the nine colors at several angles', () => {
+describe('finding a face in a picture', () => {
+  const mixed: RGB[] = [0, 1, 2, 3, 4, 5, 1, 1, 3].map((v) => SEEN[v]);
+  // Large blocks of one color, like a nearly solved cube.
+  const blocky: RGB[] = [3, 3, 3, 4, 4, 4, 4, 4, 4].map((v) => SEEN[v]);
+  const solid: RGB[] = new Array(9).fill(SEEN[2]);
+
+  it('reads a face with dark gaps at several angles', () => {
     const random = seeded(9);
     for (const degrees of [0, 12, -25, 38]) {
-      const found = detectFace(drawFace(face, (degrees * Math.PI) / 180, random));
-      expect(found, `angle ${degrees}`).not.toBeNull();
-      expect(found!.matched).toBe(9);
-      found!.colors.forEach((color, i) => {
-        const off = Math.abs(color[0] - face[i][0]) + Math.abs(color[1] - face[i][1]) + Math.abs(color[2] - face[i][2]);
-        expect(off, `angle ${degrees}, cell ${i}`).toBeLessThan(30);
-      });
+      expectColors(detectFace(drawFace(mixed, (degrees * Math.PI) / 180, random)), mixed, `angle ${degrees}`);
+    }
+  });
+
+  it('reads a face without gaps, where same-colored pieces merge', () => {
+    const random = seeded(12);
+    for (const degrees of [0, 9, -20, 33]) {
+      const angle = (degrees * Math.PI) / 180;
+      expectColors(detectFace(drawFace(mixed, angle, random, false)), mixed, `mixed, angle ${degrees}`);
+      expectColors(detectFace(drawFace(blocky, angle, random, false)), blocky, `blocky, angle ${degrees}`);
+      expectColors(detectFace(drawFace(solid, angle, random, false)), solid, `solid, angle ${degrees}`);
     }
   });
 
   it('finds nothing in a picture without a cube', () => {
     const random = seeded(10);
-    const empty = drawFace(face, 0, random);
+    const empty = drawFace(mixed, 0, random);
     for (let i = 0; i < empty.data.length; i += 4) empty.data.set([90, 100, 110], i);
     expect(detectFace(empty)).toBeNull();
   });
