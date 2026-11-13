@@ -81,6 +81,7 @@ export function App() {
           <nav>
             <a href={`${SITE}/#about`}>About</a>
             <a href={`${SITE}/#experience`}>Experience</a>
+            <a href={`${SITE}/#contact`}>Contact</a>
             <a href={`${SITE}/now/`}>Now</a>
             <a href="#/" className="current">
               Puzzles
