@@ -3,8 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#12141a" />
-    <title>Puzzle Camera</title>
+    <title>Puzzles · Anish Timsina</title>
+    <meta
+      name="description"
+      content="Point a camera at a puzzle and get the solution one step at a time. Starts with a Rubik's cube solver that runs entirely in the browser."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&family=JetBrains+Mono:wght@400;700&display=swap"
+    />
+    <script>
+      // The theme choice is shared with the main site, which stores it under the same key.
+      try {
+        const stored = localStorage.getItem('theme');
+        if (stored) document.documentElement.dataset.theme = stored;
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

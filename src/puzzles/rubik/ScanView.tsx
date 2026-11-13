@@ -102,7 +102,7 @@ export function ScanView({ onDone, onCancel }: Props) {
       if (!detection) return;
       const { center, u, v } = detection;
       const corner = (i: number, j: number) => [center[0] + i * u[0] + j * v[0], center[1] + i * u[1] + j * v[1]] as const;
-      g.strokeStyle = accepted ? '#4cc38a' : '#ffffff';
+      g.strokeStyle = accepted ? '#34d399' : '#ffffff';
       g.lineWidth = 2;
       g.beginPath();
       for (const k of [-1.5, -0.5, 0.5, 1.5]) {
