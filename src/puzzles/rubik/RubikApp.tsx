@@ -3,6 +3,7 @@ import type { RGB } from '../../shared/color';
 import { assembleCube } from './assemble';
 import { DEFAULT_PALETTE, type PaletteColor } from './colors';
 import { SOLVED, applyMoves, randomMoves } from './cube';
+import type { Neighbors } from './faceTracker';
 import { warmUpFastSolver } from './fastSolver';
 import { ReviewView } from './ReviewView';
 import { ScanView } from './ScanView';
@@ -19,8 +20,8 @@ export function RubikApp() {
 
   useEffect(warmUpFastSolver, []);
 
-  const onScanned = useCallback((faces: RGB[][]) => {
-    const { stickers, palette, valid } = assembleCube(faces);
+  const onScanned = useCallback((faces: RGB[][], neighbors: Neighbors[]) => {
+    const { stickers, palette, valid } = assembleCube(faces, neighbors);
     setScreen({
       name: 'review',
       stickers,

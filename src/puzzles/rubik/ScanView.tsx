@@ -1,33 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { rgbCss, rgbToLab, type RGB } from '../../shared/color';
+import { rgbCss, type RGB } from '../../shared/color';
 import { useCamera } from '../../shared/useCamera';
-import { colorCost } from './colors';
 import { detectFace, type FaceDetection } from './detectFace';
+import { FaceTracker, type Neighbors, type TrackedFace } from './faceTracker';
 
-/** Width of the frame that is analyzed. Small frames are fast and still show the stickers clearly. */
+/** Width of the frame that is analyzed. Small frames are fast and still show the pieces clearly. */
 const FRAME_WIDTH = 320;
-/** A face is accepted after it has been read the same way this many times in a row. */
-const STEADY_FRAMES = 2;
-
-interface FoundFace {
-  colors: RGB[];
-  labs: number[][];
-  matched: number;
-}
-
-const rotate = <T,>(cells: T[]) => cells.map((_, i) => cells[(2 - (i % 3)) * 3 + Math.floor(i / 3)]);
-
-/** Average color difference between two faces, taking the best of the four rotations. */
-function faceDifference(a: number[][], b: number[][]): number {
-  let best = Infinity;
-  let turned = a;
-  for (let k = 0; k < 4; k++) {
-    const total = turned.reduce((sum, lab, i) => sum + colorCost(lab, b[i]), 0) / 9;
-    best = Math.min(best, total);
-    turned = rotate(turned);
-  }
-  return best;
-}
 
 // Stops the camera from re-tuning brightness and white balance between sides, where it is supported.
 function lockExposure(video: HTMLVideoElement | null) {
@@ -41,52 +19,26 @@ function lockExposure(video: HTMLVideoElement | null) {
   if (advanced.length) track.applyConstraints({ advanced } as MediaTrackConstraints).catch(() => {});
 }
 
-/**
- * Decides what a new sighting is: a side that is already known, a new side, or noise.
- * Returns the index of the matching side, -1 for a new side, or null to ignore it.
- */
-function identify(found: FoundFace[], labs: number[][]): number | null {
-  let nearest = -1;
-  let nearestDifference = Infinity;
-  let centerGap = Infinity;
-  found.forEach((face, i) => {
-    const d = faceDifference(labs, face.labs);
-    if (d < nearestDifference) {
-      nearestDifference = d;
-      nearest = i;
-    }
-    centerGap = Math.min(centerGap, colorCost(labs[4], face.labs[4]));
-  });
-  if (nearestDifference < 14) return nearest;
-  // A new side has a center color of its own. Red and orange centers can look alike,
-  // so a clearly different sticker pattern also counts when the centers are only a little apart.
-  if (centerGap > 16 || (centerGap > 7 && nearestDifference > 28)) return -1;
-  return null;
-}
-
 interface Props {
-  /** Receives six faces of nine colors. Their order and rotation are arbitrary. */
-  onDone: (faces: RGB[][]) => void;
+  /** Receives six faces of nine colors in arbitrary order and rotation, plus notes on how the cube was turned. */
+  onDone: (faces: RGB[][], neighbors: Neighbors[]) => void;
   onCancel: () => void;
 }
 
 export function ScanView({ onDone, onCancel }: Props) {
   const { videoRef, error, ready, mirrored, setMirrored } = useCamera();
-  const [found, setFound] = useState<FoundFace[]>([]);
+  const [found, setFound] = useState<TrackedFace[]>([]);
   const [seeing, setSeeing] = useState(false);
   const [flash, setFlash] = useState(0);
   const overlayRef = useRef<HTMLCanvasElement>(null);
-  const foundRef = useRef(found);
-  foundRef.current = found;
+  const trackerRef = useRef<FaceTracker | null>(null);
+  const tracker = (trackerRef.current ??= new FaceTracker());
 
   useEffect(() => {
     if (!ready) return;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
-    let previous: number[][] | null = null;
-    let steady = 0;
-
     // Draws the outline of the side in view, split into its 3x3 grid.
     const drawOverlay = (detection: FaceDetection | null, accepted: boolean) => {
       const overlay = overlayRef.current;
@@ -125,43 +77,24 @@ export function ScanView({ onDone, onCancel }: Props) {
       const detection = detectFace(ctx.getImageData(0, 0, FRAME_WIDTH, height));
       setSeeing(Boolean(detection));
 
-      if (!detection) {
-        previous = null;
-        steady = 0;
-        drawOverlay(null, false);
-        return;
-      }
-      const labs = detection.colors.map(rgbToLab);
-      // Two readings in a row must agree. This filters out motion blur.
-      const agrees = previous !== null && labs.every((lab, i) => colorCost(lab, previous![i]) < 12);
-      steady = agrees ? steady + 1 : 1;
-      previous = labs;
-      const known = foundRef.current;
-      const match = steady >= STEADY_FRAMES ? identify(known, labs) : null;
-      drawOverlay(detection, match !== null);
-      if (match === null) return;
-
-      const face: FoundFace = { colors: detection.colors, labs, matched: detection.matched };
-      if (match === -1 && known.length < 6) {
-        if (known.length === 0) lockExposure(video);
-        foundRef.current = [...known, face];
-        setFound(foundRef.current);
+      const before = tracker.faces;
+      const outcome = tracker.observe(detection, performance.now());
+      drawOverlay(detection, outcome === 'known' || outcome === 'added');
+      if (outcome === 'added') {
+        if (tracker.faces.length === 1) lockExposure(video);
         setFlash((n) => n + 1);
-      } else if (match >= 0 && face.matched > known[match].matched) {
-        // A cleaner view of a known side replaces the earlier one.
-        foundRef.current = known.map((f, i) => (i === match ? face : f));
-        setFound(foundRef.current);
       }
+      if (tracker.faces !== before) setFound(tracker.faces);
     }, 90);
     return () => window.clearInterval(timer);
-  }, [ready, videoRef]);
+  }, [ready, videoRef, tracker]);
 
   // Move on by itself once all six sides are in.
   useEffect(() => {
     if (found.length < 6) return;
-    const timer = window.setTimeout(() => onDone(found.map((f) => f.colors)), 700);
+    const timer = window.setTimeout(() => onDone(found.map((f) => f.colors), tracker.neighbors), 700);
     return () => window.clearTimeout(timer);
-  }, [found, onDone]);
+  }, [found, onDone, tracker]);
 
   if (error) {
     return (
@@ -189,7 +122,14 @@ export function ScanView({ onDone, onCancel }: Props) {
     link.click();
   };
 
-  const remove = (index: number) => setFound(found.filter((_, i) => i !== index));
+  const remove = (index: number) => {
+    tracker.remove(index);
+    setFound(tracker.faces);
+  };
+  const startOver = () => {
+    tracker.reset();
+    setFound([]);
+  };
 
   return (
     <div className="scan">
@@ -204,7 +144,8 @@ export function ScanView({ onDone, onCancel }: Props) {
         <h2>{found.length < 6 ? `${found.length} of 6 sides found` : 'All six sides found'}</h2>
         <p>
           Turn the cube slowly so that every side faces the camera once. Any order works, and it does not matter which
-          way up the cube is. An outline appears around a side when it is seen, and the screen flashes when it is saved.
+          way up the cube is. Roll it from one side to the next without putting it down, so the app can follow how the
+          sides connect. An outline appears around a side when it is seen, and the screen flashes when it is saved.
         </p>
         <p className={seeing ? 'status good left' : 'status left'} role="status">
           {found.length === 6 ? 'Fitting the sides together…' : seeing ? 'Side in view.' : 'Looking for a side…'}
@@ -229,7 +170,7 @@ export function ScanView({ onDone, onCancel }: Props) {
           })}
         </div>
         <div className="row">
-          <button type="button" className="btn" onClick={() => setFound([])} disabled={found.length === 0}>
+          <button type="button" className="btn" onClick={startOver} disabled={found.length === 0}>
             Start over
           </button>
           <button type="button" className="btn" onClick={() => setMirrored(!mirrored)}>
