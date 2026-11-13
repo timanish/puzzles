@@ -137,6 +137,22 @@ export function parseAlg(alg: string): Move[] {
 export const invertMove = (m: Move): Move => ({ face: m.face, turns: (4 - m.turns) as 1 | 2 | 3 });
 export const invertAlg = (moves: readonly Move[]): Move[] => [...moves].reverse().map(invertMove);
 
+/** Merges turns of the same face that follow each other, and drops the ones that cancel out. */
+export function simplifyAlg(moves: readonly Move[]): Move[] {
+  const out: Move[] = [];
+  for (const move of moves) {
+    const last = out[out.length - 1];
+    if (!last || last.face !== move.face) {
+      out.push({ ...move });
+      continue;
+    }
+    const turns = (last.turns + move.turns) % 4;
+    if (turns === 0) out.pop();
+    else last.turns = turns as 1 | 2 | 3;
+  }
+  return out;
+}
+
 export const toFaceletString = (state: CubeState) => state.map((v) => FACES[v]).join('');
 export const fromFaceletString = (s: string) => [...s].map((ch) => FACES.indexOf(ch as Face));
 

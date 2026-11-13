@@ -1,6 +1,7 @@
 import Cube from 'cubejs';
 import { describe, expect, it } from 'vitest';
 import { solveBeginner } from '../src/puzzles/rubik/beginner';
+import { SHORT_LIMIT, solveShort } from '../src/puzzles/rubik/shortSolver';
 import {
   CORNERS,
   EDGES,
@@ -10,6 +11,7 @@ import {
   isSolved,
   parseAlg,
   randomMoves,
+  simplifyAlg,
   toFaceletString,
   validate,
 } from '../src/puzzles/rubik/cube';
@@ -96,5 +98,41 @@ describe('beginner solver', () => {
     const state = applyMoves(SOLVED, parseAlg("R U R' U'"));
     const solution = solveBeginner(state);
     expect(solution.moveCount).toBeGreaterThan(0);
+  });
+});
+
+describe('shortest solver', () => {
+  it('never needs more moves than the scramble had', () => {
+    const random = seeded(4);
+    for (let length = 0; length <= 7; length++) {
+      for (let run = 0; run < 6; run++) {
+        const state = applyMoves(SOLVED, randomMoves(length, random));
+        const solution = solveShort(state);
+        expect(solution, `length ${length}`).not.toBeNull();
+        expect(solution!.length).toBeLessThanOrEqual(length);
+        expect(isSolved(applyMoves(state, solution!))).toBe(true);
+      }
+    }
+  });
+
+  it('finds the known shortest solution of simple cases', () => {
+    expect(solveShort(SOLVED)).toEqual([]);
+    expect(formatAlg(solveShort(applyMoves(SOLVED, parseAlg('R')))!)).toBe("R'");
+    // Six quarter turns that cannot be shortened.
+    expect(solveShort(applyMoves(SOLVED, parseAlg("R U R' U' F D")))!.length).toBe(6);
+  });
+
+  it('gives up on cubes that are far from solved', () => {
+    const state = applyMoves(SOLVED, randomMoves(30, seeded(8)));
+    const t0 = performance.now();
+    expect(solveShort(state)).toBeNull();
+    console.log(`short solver gave up after ${(performance.now() - t0).toFixed(0)} ms (limit ${SHORT_LIMIT} moves)`);
+  });
+});
+
+describe('simplifying move lists', () => {
+  it('merges and cancels turns of the same face', () => {
+    expect(formatAlg(simplifyAlg(parseAlg("R R U U' F F2 L L'")))).toBe("R2 F'");
+    expect(simplifyAlg(parseAlg("R U U' R'"))).toEqual([]);
   });
 });

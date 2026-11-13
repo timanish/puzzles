@@ -47,13 +47,16 @@ export function SolveView({ stickers, palette, onBack }: Props) {
     let cancelled = false;
     setFast(null);
     setFastError(false);
-    solveFast(stickers)
+    solveFast(
+      stickers,
+      beginner.stages.flatMap((stage) => stage.steps.flatMap((step) => step.moves)),
+    )
       .then((s) => !cancelled && setFast(s))
       .catch(() => !cancelled && setFastError(true));
     return () => {
       cancelled = true;
     };
-  }, [stickers]);
+  }, [stickers, beginner]);
 
   const solution = mode === 'fast' ? fast : beginner;
   const { steps, moves } = useMemo(() => flatten(solution ?? { stages: [], moveCount: 0 }), [solution]);
