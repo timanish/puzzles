@@ -5,6 +5,7 @@ import { DEFAULT_PALETTE, type PaletteColor } from './colors';
 import { SOLVED, applyMoves, randomMoves } from './cube';
 import type { Neighbors } from './faceTracker';
 import { warmUpFastSolver } from './fastSolver';
+import { Guide } from './Guide';
 import { ReviewView } from './ReviewView';
 import { ScanView } from './ScanView';
 import { SolveView } from './SolveView';
@@ -35,8 +36,9 @@ export function RubikApp() {
   switch (screen.name) {
     case 'start':
       return (
+        <>
         <div className="card">
-          <h2>Rubik's Cube solver</h2>
+          <h2>Scan your cube</h2>
           <p>Turn your cube in front of the camera until it has seen all six sides. You then get a move-by-move solution, both the shortest route and a beginner method that explains each stage.</p>
           <div className="row">
             <button type="button" className="btn primary" onClick={() => setScreen({ name: 'scan' })}>
@@ -60,6 +62,8 @@ export function RubikApp() {
             </button>
           </div>
         </div>
+        <Guide />
+        </>
       );
     case 'scan':
       return <ScanView onDone={onScanned} onCancel={() => setScreen({ name: 'start' })} />;

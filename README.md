@@ -2,7 +2,7 @@
 
 Point a camera at a puzzle and get the solution one step at a time.
 
-Live site: https://timanish.github.io/puzzles/
+Live site: https://timanish.github.io/puzzles/ (the cube solver is at [/puzzles/rubik/](https://timanish.github.io/puzzles/rubik/))
 
 Puzzle Camera is a suite of browser apps that solve real-life puzzles from a camera picture. The first puzzle is a 3x3 Rubik's cube. Everything runs in the browser, and the camera picture never leaves the device.
 
@@ -38,14 +38,14 @@ npm install
 npm run dev
 ```
 
-Open the address that Vite prints. Camera access works on `localhost` without extra setup.
+Open the address that Vite prints. The cube solver is at `/rubik/`. Camera access works on `localhost` without extra setup.
 
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Starts the dev server. |
 | `npm run dev:phone` | Serves over HTTPS on the local network with a self-signed certificate. |
 | `npm test` | Runs the test suite once with Vitest. |
-| `npm run build` | Type-checks, then builds the site into `dist`. |
+| `npm run build` | Type-checks, builds the site into `dist` and prerenders each page. |
 | `npm run preview` | Serves the built site locally. |
 
 ### Testing on a phone
@@ -72,8 +72,13 @@ The solvers work on the resulting state.
 ## Project layout
 
 ```
+index.html           Landing page
+rubik/index.html     Page of the cube solver, with its own title and description
+public/              Favicon, sitemap and the share image
+scripts/prerender.mjs  Fills the built pages with their rendered HTML
 src/
-  App.tsx            Landing page, puzzle registry and hash routing
+  App.tsx            Landing page and puzzle registry
+  prerender.tsx      Renders a page to HTML and supplies its structured data
   shared/            Camera hook and color helpers used by every puzzle
   puzzles/rubik/     The Rubik's cube solver
     RubikApp.tsx     Screen flow: start, scan, review, solve
@@ -82,12 +87,18 @@ src/
     SolveView.tsx    Step-by-step playback
     Cube3D.tsx       Animated 3D cube
     FaceNet.tsx      Unfolded cube for the review screen
+    Guide.tsx        How-to, notation and FAQ under the start screen
 tests/               Vitest suites for the cube model, solvers, scan and tracker
 ```
 
 ### Adding a puzzle
 
-Each puzzle lives in its own folder under `src/puzzles`. Add a folder with a root component, then register it in the `PUZZLES` list in `src/App.tsx`. The list entry supplies the route, the card on the landing page and the component to render.
+Each puzzle lives in its own folder under `src/puzzles` and has a page of its own, so search engines can index it. To add one:
+
+1. Add a folder under `src/puzzles` with a root component.
+2. Register it in the `PUZZLES` list in `src/App.tsx`. The entry supplies the card on the landing page, the page heading and the component to render.
+3. Copy `rubik/index.html` to `<id>/index.html`. Set `data-route` to the puzzle's id and write a title, description and canonical address for it.
+4. Add the page to the entries in `vite.config.ts`, to `PAGES` in `scripts/prerender.mjs` and to `public/sitemap.xml`.
 
 ## Tech stack
 
@@ -96,7 +107,19 @@ Each puzzle lives in its own folder under `src/puzzles`. Add a folder with a roo
 - Vitest for tests
 - cubejs for the two-phase solver
 
-The app has no backend. Routing uses the URL hash, and assets use relative paths, so the build runs from any folder on a static host.
+The app has no backend. Links and assets use relative paths, so the build runs from any folder on a static host.
+
+## Search engines and link previews
+
+Each page is a real HTML file with its own title, description and canonical address. The build renders every page to HTML ahead of time, so crawlers see the text without running JavaScript. The browser then hydrates that HTML.
+
+- The cube page carries `WebApplication` and `FAQPage` structured data. The FAQ text lives in `src/puzzles/rubik/guideText.ts`, which also feeds the visible guide.
+- `public/sitemap.xml` lists the pages.
+- `public/og.png` is the picture that link previews show.
+- The canonical addresses, the sitemap and the share image use the full address `https://timanish.github.io/puzzles/`. Update them if the site moves.
+- Old links of the form `#/rubik` are redirected to `rubik/`.
+
+A `robots.txt` only counts at the root of a host. This site is served from a subfolder, so that file belongs to the main site's repository.
 
 ## Deployment
 

@@ -11,4 +11,6 @@ export default defineConfig({
   base: './',
   plugins: [react(), ...(https ? [basicSsl()] : [])],
   worker: { format: 'es' },
+  // Every page with an address of its own is an entry. Each puzzle has one, so search engines can index it.
+  build: { rolldownOptions: { input: { home: 'index.html', rubik: 'rubik/index.html' } } },
 });

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Rubik's Cube Solver with Camera Scan: Free, Step by Step</title>
+    <meta
+      name="description"
+      content="Scan a 3x3 Rubik's Cube with your phone or webcam and follow the solution one move at a time. Free, with a beginner method and the shortest route. Nothing to install."
+    />
+    <link rel="canonical" href="https://timanish.github.io/puzzles/rubik/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Puzzle Camera" />
+    <meta property="og:title" content="Rubik's Cube Solver with Camera Scan" />
+    <meta
+      property="og:description"
+      content="Scan a 3x3 Rubik's Cube with your phone or webcam and follow the solution one move at a time. Free, with a beginner method and the shortest route. Nothing to install."
+    />
+    <meta property="og:url" content="https://timanish.github.io/puzzles/rubik/" />
+    <meta property="og:image" content="https://timanish.github.io/puzzles/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Puzzle Camera: a Rubik's Cube solver that scans the cube with your camera" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&family=JetBrains+Mono:wght@400;700&display=swap"
+    />
+    <script>
+      // The theme choice is shared with the main site, which stores it under the same key.
+      try {
+        const stored = localStorage.getItem('theme');
+        if (stored) document.documentElement.dataset.theme = stored;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <!-- The build fills this element with the rendered page. Keep it empty here. -->
+    <div id="root" data-route="rubik"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
 import { RubikApp } from './puzzles/rubik/RubikApp';
-
-const SITE = 'https://timanish.github.io';
+import { SITE } from './site';
 
 // Each puzzle lives in its own folder under src/puzzles and is registered here.
+// The id is also the folder of the puzzle's page, so "rubik" is served at rubik/.
 const PUZZLES = [
   {
     id: 'rubik',
     title: "Rubik's Cube",
+    heading: "Rubik's Cube Solver",
     blurb: 'Turn a 3x3 cube in front of the camera, then follow the solution one move at a time.',
     tags: ['Camera scan', 'Beginner method', 'Shortest solution'],
     // Sticker colors of the small preview, row by row.
@@ -21,8 +21,6 @@ const STEPS = [
   { title: 'Check', text: 'Compare what the app read with the real thing, and fix anything it got wrong.' },
   { title: 'Solve', text: 'Follow the solution one step at a time, with a picture and a plain description of each move.' },
 ];
-
-const currentRoute = () => window.location.hash.replace(/^#\/?/, '');
 
 function toggleTheme() {
   const root = document.documentElement;
@@ -56,19 +54,15 @@ function Topo() {
   );
 }
 
-export function App() {
-  const [route, setRoute] = useState(currentRoute);
+interface Props {
+  /** Id of the puzzle that this page shows. Empty on the landing page. */
+  route: string;
+}
 
-  useEffect(() => {
-    const onChange = () => {
-      setRoute(currentRoute());
-      window.scrollTo(0, 0);
-    };
-    window.addEventListener('hashchange', onChange);
-    return () => window.removeEventListener('hashchange', onChange);
-  }, []);
-
+export function App({ route }: Props) {
   const puzzle = PUZZLES.find((p) => p.id === route);
+  // Links are relative, so the site works from any folder. Puzzle pages sit one folder down.
+  const home = puzzle ? '../' : './';
 
   return (
     <>
@@ -83,7 +77,7 @@ export function App() {
             <a href={`${SITE}/#experience`}>Experience</a>
             <a href={`${SITE}/#contact`}>Contact</a>
             <a href={`${SITE}/now/`}>Now</a>
-            <a href="#/" className="current">
+            <a href={home} className="current">
               Puzzles
             </a>
             <button type="button" id="theme-toggle" aria-label="Toggle color theme" title="Toggle theme" onClick={toggleTheme}>
@@ -98,8 +92,9 @@ export function App() {
         {puzzle ? (
           <div className="puzzle-shell">
             <p className="crumbs mono">
-              <a href="#/">puzzles</a> / {puzzle.id}
+              <a href={home}>puzzles</a> / {puzzle.id}
             </p>
+            <h1>{puzzle.heading}</h1>
             <puzzle.component />
           </div>
         ) : (
@@ -118,7 +113,7 @@ export function App() {
               </h2>
               <div className="puzzles">
                 {PUZZLES.map((p) => (
-                  <a key={p.id} href={`#/${p.id}`} className="puzzle-card">
+                  <a key={p.id} href={`${p.id}/`} className="puzzle-card">
                     <div className="mini-face" aria-hidden="true">
                       {p.preview.map((color, i) => (
                         <span key={i} style={{ background: color }} />
@@ -166,7 +161,7 @@ export function App() {
             view source
           </a>
         </p>
-        <p className="mono dim">© {new Date().getFullYear()} Anish Timsina</p>
+        <p className="mono dim" suppressHydrationWarning>© {new Date().getFullYear()} Anish Timsina</p>
       </footer>
     </>
   );
